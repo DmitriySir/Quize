@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Календарь квизов</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: #2c3e50;
+      color: white;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.8rem;
+      cursor: pointer;
+      padding: 0.25rem;
+      user-select: none;
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      padding: 1rem;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+    }
+
+    .day-name {
+      text-align: center;
+      padding: 0.5rem;
+      font-weight: bold;
+      color: #7f8c8d;
+      background: #ecf0f1;
+      border-radius: 4px;
+    }
+
+    .day {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+      user-select: none;
+      font-size: 1.1rem;
+    }
+
+    .day:hover {
+      background: #e0e7ff;
+      transform: scale(1.03);
+    }
+
+    .day.other-month {
+      color: #bdc3c7;
+      background: #f9f9f9;
+    }
+
+    .day.today {
+      background: #3498db;
+      color: red;
+    }
+
+    .day.has-event {
+      background: #e8f4fc;
+      position: relative;
+    }
+
+    .day.has-event::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      width: 6px;
+      height: 6px;
+      background: #3498db;
+      border-radius: 50%;
+    }
+
+    .calendar.slide-left {
+      animation: slideLeft 0.4s ease forwards;
+    }
+    .calendar.slide-right {
+      animation: slideRight 0.4s ease forwards;
+    }
+
+    @keyframes slideLeft {
+      from { transform: translateX(0); opacity: 1; }
+      to   { transform: translateX(-100%); opacity: 0; }
+    }
+    @keyframes slideRight {
+      from { transform: translateX(0); opacity: 1; }
+      to   { transform: translateX(100%); opacity: 0; }
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      max-width: 90%;
+      width: 340px;
+      max-height: 90vh;
+      overflow-y: auto;
+      text-align: left;
+      transform: translateY(20px);
+      transition: transform 0.3s;
+    }
+
+    .modal.show .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal h2 {
+      margin-bottom: 1rem;
+      color: #2c3e50;
+      text-align: center;
+    }
+
+    .event-card {
+      margin-bottom: 1.2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+    }
+
+    .event-card:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .event-card h3 {
+      color: #2c3e50;
+      margin: 0.4rem 0;
+      font-size: 1.1rem;
+    }
+
+    .event-card p {
+      margin: 0.3rem 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .map-container {
+      width: 100%;
+      height: 140px;
+      margin-top: 0.6rem;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .modal-close-btn {
+      display: block;
+      width: 100%;
+      padding: 0.6rem;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+    }
+
+    .modal-close-btn:hover {
+      background: #2980b9;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <button class="nav-btn" id="prev">&larr;</button>
+    <div id="month-year">Январь 2025</div>
+    <button class="nav-btn" id="next">&rarr;</button>
+  </div>
+
+  <div class="calendar" id="calendar"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-content" id="modal-content"></div>
+  </div>
+
+  <script>
+    const months = [
+      'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+    ];
+    const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+    let currentDate = new Date();
+    const calendarEl = document.getElementById('calendar');
+    const monthYearEl = document.getElementById('month-year');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+    const modal = document.getElementById('modal');
+    const modalContent = document.getElementById('modal-content');
+
+    let eventsData = {}; // ключ: YYYY-MM-DD → массив событий
+
+    // Преобразует ДД-ММ-ГГГГ → Date
+    function parseDMY(dateStr) {
+      const [dd, mm, yyyy] = dateStr.split('-').map(Number);
+      return new Date(yyyy, mm - 1, dd);
+    }
+
+    // Загрузка venues.json и events.json
+    async function loadVenuesAndEvents() {
+      try {
+        // Загружаем справочник мест
+        const venuesRes = await fetch('venues.json');
+        if (!venuesRes.ok) throw new Error('Файл venues.json не найден');
+        const venues = await venuesRes.json();
+
+        // Загружаем события
+        const eventsRes = await fetch('events.json');
+        if (!eventsRes.ok) throw new Error('Файл events.json не найден');
+        const rawData = await eventsRes.json();
+
+        // Собираем события с подставленными данными из venues
+        eventsData = {};
+        for (const dmyKey in rawData) {
+          if (dmyKey.match(/^\d{2}-\d{2}-\d{4}$/)) {
+            const dateObj = parseDMY(dmyKey);
+            const isoKey = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD
+
+            eventsData[isoKey] = (rawData[dmyKey] || []).map(event => {
+              if (event.venue && venues[event.venue]) {
+                const v = venues[event.venue];
+                return {
+                  ...event,
+                  place: v.name,
+                  address: v.address,
+                  coords: v.coords
+                };
+              } else {
+                // Если venue не найден — оставляем как есть (или используем заглушки)
+                return {
+                  ...event,
+                  place: event.place || 'Не указано',
+                  address: event.address || '',
+                  coords: event.coords || null
+                };
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Ошибка загрузки данных:', e);
+        eventsData = {};
+      }
+    }
+
+    function getEventsForDate(date) {
+      const iso = date.toISOString().split('T')[0];
+      return eventsData[iso] || [];
+    }
+
+    // Навигация
+    prevBtn.addEventListener('click', () => {
+      animateCalendar('left');
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      setTimeout(() => renderCalendar(currentDate), 300);
+    });
+
+    nextBtn.addEventListener('click', () => {
+      animateCalendar('right');
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      setTimeout(() => renderCalendar(currentDate), 300);
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('show');
+    });
+
+    function animateCalendar(direction) {
+      calendarEl.className = 'calendar slide-' + (direction === 'left' ? 'left' : 'right');
+    }
+
+    function renderCalendar(date) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      monthYearEl.textContent = `${months[month]} ${year}`;
+      calendarEl.innerHTML = '';
+
+      weekdays.forEach(day => {
+        const el = document.createElement('div');
+        el.className = 'day-name';
+        el.textContent = day;
+        calendarEl.appendChild(el);
+      });
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const startDayIndex = firstDay === 0 ? 6 : firstDay - 1;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const prevMonthDays = new Date(year, month, 0).getDate();
+
+      for (let i = startDayIndex - 1; i >= 0; i--) {
+        const dayEl = createDayElement(prevMonthDays - i, true);
+        calendarEl.appendChild(dayEl);
+      }
+
+      const today = new Date();
+      const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dayDate = new Date(year, month, day);
+        const isToday = isCurrentMonth && day === today.getDate();
+        const hasEvents = getEventsForDate(dayDate).length > 0;
+        const dayEl = createDayElement(day, false, isToday, year, month, day, hasEvents);
+        calendarEl.appendChild(dayEl);
+      }
+
+      void calendarEl.offsetWidth;
+      calendarEl.className = 'calendar';
+    }
+
+    function createDayElement(day, isOtherMonth, isToday = false, year, month, dayNum, hasEvents = false) {
+      const el = document.createElement('div');
+      el.className = 'day';
+      if (isOtherMonth) el.classList.add('other-month');
+      if (isToday) el.classList.add('today');
+      if (hasEvents) el.classList.add('has-event');
+
+      el.textContent = day;
+
+      if (!isOtherMonth) {
+        el.addEventListener('click', () => {
+          const events = getEventsForDate(new Date(year, month, dayNum));
+          showEventModal(day, months[month], year, events);
+        });
+      }
+
+      return el;
+    }
+
+    function showEventModal(day, monthName, year, events) {
+      let html = `<h2>${day} ${monthName} ${year}</h2>`;
+
+      if (events.length === 0) {
+        html += `<p style="text-align:center; margin-top:1rem;">Нет запланированных квизов.</p>`;
+      } else {
+        events.forEach(event => {
+          html += `
+            <div class="event-card">
+              <h3>${event.title}</h3>
+              <p><strong>📍 Место:</strong> ${event.place}</p>
+              <p><strong>🏠 Адрес:</strong> ${event.address}</p>
+              <p><strong>🕒 Время:</strong> ${event.time}</p>
+              ${event.price ? `<p><strong>💰 Цена:</strong> ${event.price}</p>` : ''}
+              ${event.description ? `<p>${event.description}</p>` : ''}
+          `;
+
+          if (event.coords && event.coords.length === 2) {
+            const [lat, lng] = event.coords;
+            html += `
+              <div class="map-container">
+                <iframe 
+                  src="https://yandex.ru/map-widget/v1/?ll=${lng}%2C${lat}&z=15&pt=${lng}%2C${lat}"
+                  width="100%" 
+                  height="100%" 
+                  frameborder="0" 
+                  allowfullscreen>
+                </iframe>
+              </div>
+            `;
+          }
+
+          html += `</div>`;
+        });
+      }
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'modal-close-btn';
+      closeBtn.textContent = 'Закрыть';
+      closeBtn.onclick = () => modal.classList.remove('show');
+
+      modalContent.innerHTML = html;
+      modalContent.appendChild(closeBtn);
+      modal.classList.add('show');
+    }
+
+    // Запуск приложения
+    loadVenuesAndEvents().then(() => renderCalendar(currentDate));
+  </script>
+</body>
+</html>
